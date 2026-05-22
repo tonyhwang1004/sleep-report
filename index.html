@@ -153,6 +153,10 @@
       <label>독서실 이름</label>
       <input type="text" id="academyName" value="송도 김엄마관리형독서실" oninput="rebuild()">
     </div>
+    <div class="hint" style="margin:16px 0 0">
+      <b>등급 기준(누적 졸음):</b> 양호 0~5회 · 주의 6~20회 · 관리필요 21~50회 · 집중관리 51회 이상.
+      학생 번호 위 배지는 6회 이상 주황, 21회 이상 빨강으로 표시됩니다.
+    </div>
   </div>
 
   <div class="card">
@@ -246,13 +250,13 @@ function renderStudents(){
   const area=document.getElementById('stuArea');
   const badge=document.getElementById('badgeArea');
   if(!students.length){ area.innerHTML='<div class="empty">먼저 2단계에서 데이터를 불러오세요.</div>'; badge.innerHTML=''; return; }
-  const need=students.filter(s=>s.total>=6).length;
+  const need=students.filter(s=>s.total>=21).length;
   badge.innerHTML=`<div class="badge">👥 학생 ${students.length}명${need>0?` · ⚠ 관리필요 ${need}명`:''}</div>`;
   let html='<div class="grid-scroll"><div class="num-grid">';
   students.forEach((s,i)=>{
     let dot='';
-    if(s.total>=6) dot=`<span class="dot bad">${s.total}</span>`;
-    else if(s.total>=3) dot=`<span class="dot warn">${s.total}</span>`;
+    if(s.total>=21) dot=`<span class="dot bad">${s.total}</span>`;
+    else if(s.total>=6) dot=`<span class="dot warn">${s.total}</span>`;
     const seatNo=s.seat||(i+1);
     html+=`<div class="num-cell ${i===curIdx?'on':''}" onclick="pick(${i})">${dot}<div class="no">${seatNo}</div><div class="nm">${s.name}</div></div>`;
   });
@@ -272,9 +276,13 @@ function analyze(s){
   let maxIdx=s.periods.indexOf(maxV);
   const worst = maxV>0 ? PERIODS[maxIdx] : null;
   const mealSum = MEAL.reduce((a,m)=>a+s.periods[m],0);
-  const grade = s.total<=2?'good':s.total<=5?'warn':'bad';
-  const gradeText = s.total<=2?'양호':s.total<=5?'주의':'관리필요';
-  return {worst,maxV,mealSum,grade,gradeText,mealHeavy: mealSum>0 && mealSum>=maxV, maxIdx};
+  let grade, gradeText;
+  if(s.total<=5){ grade='good'; gradeText='양호'; }
+  else if(s.total<=20){ grade='warn'; gradeText='주의'; }
+  else if(s.total<=50){ grade='bad'; gradeText='관리필요'; }
+  else { grade='bad'; gradeText='집중관리'; }
+  const heavy = s.total>50;
+  return {worst,maxV,mealSum,grade,gradeText,heavy,mealHeavy: mealSum>0 && mealSum>=maxV, maxIdx};
 }
 function dietTips(mealHeavy){
   const t=[
@@ -294,7 +302,8 @@ function solutionTips(a,total){
     '20분 내외의 짧은 낮잠은 도움이 되지만 30분 이상은 역효과입니다.'
   ];
   if(a.worst && ['13~14','14~15'].includes(a.worst)) s.push('점심 직후 시간대에는 어려운 암기 과목보다 문제풀이·필기 등 손을 쓰는 활동을 배치하면 졸음을 줄일 수 있습니다.');
-  if(total>5) s.unshift('🔴 졸음 빈도가 높은 편입니다. 청소년 권장 수면(8~9시간)이 확보되는지 가정 점검을 권장드립니다.');
+  if(total>50) s.unshift('🔴 졸음 빈도가 매우 높습니다. 단순 식곤증을 넘어 절대적인 수면 부족이 의심되므로, 청소년 권장 수면(8~9시간) 확보와 늦은 시간 스마트폰 사용 여부를 가정에서 시급히 점검해 주시기 바랍니다.');
+  else if(total>20) s.unshift('🟠 졸음이 반복적으로 나타나고 있습니다. 평일 수면 시간이 충분한지 가정에서 함께 점검해 주시면 좋겠습니다.');
   return s;
 }
 function periodLabelText(){
@@ -328,12 +337,15 @@ function reportHTML(s){
 
 안녕하세요, 학부모님. ${s.name} 학생의 독서실 집중(졸음) 관리 결과를 공유드립니다.
 
-<div class="rhead">1. 졸음 현황 요약</div>  • 총 졸음 횟수: ${s.total}회
-  • 가장 졸음이 잦은 시간대: ${a.worst}시 (${a.maxV}회)
-  • 식사 직후 시간대 졸음: ${a.mealSum}회
+<div class="rhead">1. 졸음 현황 요약</div>  • 총 졸음 횟수: ${s.total}회${s.seat?` (자리번호 ${s.seat})`:''}
+${a.worst?`  • 가장 졸음이 잦은 시간대: ${a.worst}시 (${a.maxV}회)\n`:''}  • 식사 직후 시간대 졸음: ${a.mealSum}회
 ${tbl}
 
-<div class="rhead">2. 패턴 분석</div>  ${s.name} 학생은 주로 ${a.worst}시 무렵 집중력이 떨어지는 경향이 있습니다. ${a.mealHeavy?'특히 식사 직후 졸음이 두드러져 식단 조절이 가장 효과적일 것으로 보입니다.':'해당 시간대에 환기와 가벼운 움직임을 통한 각성 관리가 필요합니다.'}
+<div class="rhead">2. 패턴 분석</div>  ${a.heavy
+  ? `${s.name} 학생은 특정 시간대에 국한되지 않고 하루 전반에 걸쳐 졸음이 누적되고 있습니다. 이는 단순한 식곤증보다 절대적인 수면 부족이 의심되는 패턴으로, 생활 리듬 점검이 우선되어야 합니다.`
+  : a.worst
+    ? `${s.name} 학생은 주로 ${a.worst}시 무렵 집중력이 떨어지는 경향이 있습니다. ${a.mealHeavy?'특히 식사 직후 졸음이 두드러져 식단 조절이 가장 효과적일 것으로 보입니다.':'해당 시간대에 환기와 가벼운 움직임을 통한 각성 관리가 필요합니다.'}`
+    : `${s.name} 학생은 특정 시간대보다 전반적으로 졸음이 나타나고 있습니다. 교시별 기록을 함께 남겨주시면 더 정확한 시간대 분석이 가능합니다.`}
 
 <div class="rhead">3. 식단 관리 안내 (잠이 안 오게 하는 식단)</div>${diets}
 
