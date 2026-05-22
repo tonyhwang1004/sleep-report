@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>송도 김엄마관리형독서실 — 잠 관리 리포트</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+  :root{
+    --navy:#1f237a;
+    --indigo:#4338ca;
+    --indigo-deep:#3730a3;
+    --indigo-soft:#eef0fb;
+    --indigo-border:#c7caf2;
+    --bg:#eef1f6;
+    --card:#ffffff;
+    --ink:#1e2233;
+    --muted:#6b7280;
+    --line:#e3e6ee;
+    --line-2:#d7dbe8;
+    --good:#0f9d6b;
+    --good-bg:#e3f5ee;
+    --warn:#c98a17;
+    --warn-bg:#fdf3df;
+    --bad:#d83a4a;
+    --bad-bg:#fbe4e6;
+    --shadow:0 8px 28px rgba(31,35,122,.08);
+    --shadow-sm:0 2px 8px rgba(31,35,122,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;min-height:100vh}
+
+  .topbar{background:var(--navy);color:#fff}
+  .topbar .inner{max-width:1080px;margin:0 auto;padding:20px 26px;display:flex;align-items:center;gap:14px}
+  .topbar .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#fff,#dfe2ff);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+  .topbar h1{font-size:1.32rem;font-weight:900;letter-spacing:-.02em}
+  .topbar .tag{font-size:.74rem;opacity:.7;font-weight:400;margin-left:2px}
+
+  .tabbar{background:var(--navy);border-top:1px solid rgba(255,255,255,.08)}
+  .tabbar .inner{max-width:1080px;margin:0 auto;display:flex;gap:6px;padding:0 18px}
+  .tab{flex:1;text-align:center;padding:15px 8px;color:rgba(255,255,255,.62);font-size:.95rem;font-weight:500;border-bottom:3px solid transparent;transition:.18s;white-space:nowrap}
+  .tab.active{color:#fff;font-weight:700;border-bottom-color:#fff}
+
+  .wrap{max-width:880px;margin:0 auto;padding:30px 22px 80px}
+
+  .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:28px 30px;margin-bottom:22px}
+  .card-h{font-size:1.16rem;font-weight:700;display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .card-h .step{background:var(--indigo);color:#fff;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:.92rem;font-weight:700;flex-shrink:0}
+  .card-sub{color:var(--muted);font-size:.88rem;margin:0 0 18px 39px}
+
+  .badge{display:inline-block;background:var(--indigo-soft);color:var(--indigo);font-size:.8rem;font-weight:700;padding:6px 14px;border-radius:20px;margin-bottom:16px}
+
+  .selrow{display:flex;gap:12px;margin-bottom:18px}
+  .selcard{flex:1;border:2px solid var(--line-2);border-radius:14px;padding:16px;text-align:center;cursor:pointer;transition:.16s;background:#fff}
+  .selcard:hover{border-color:var(--indigo-border)}
+  .selcard.on{border-color:var(--indigo);background:var(--indigo-soft);box-shadow:var(--shadow-sm)}
+  .selcard .big{font-size:1.25rem;font-weight:900;color:var(--ink)}
+  .selcard.on .big{color:var(--indigo)}
+  .selcard .small{font-size:.78rem;color:var(--muted);margin-top:3px}
+
+  .field{margin-bottom:16px}
+  .field label{font-size:.84rem;color:var(--muted);font-weight:500;display:block;margin-bottom:6px}
+  input[type=text]{font-family:inherit;font-size:.96rem;padding:11px 14px;border:1.5px solid var(--line-2);border-radius:11px;background:#fff;width:320px;max-width:100%;transition:.15s}
+  input:focus,textarea:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px rgba(67,56,202,.1)}
+  textarea{width:100%;min-height:150px;font-family:'Courier New',monospace;font-size:.85rem;padding:14px;border:1.5px solid var(--line-2);border-radius:13px;background:#fbfbfe;resize:vertical;line-height:1.55;transition:.15s}
+
+  .btn{font-family:inherit;font-size:.94rem;font-weight:700;padding:12px 24px;border:none;border-radius:12px;cursor:pointer;transition:.16s;background:var(--indigo);color:#fff}
+  .btn:hover{background:var(--indigo-deep);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .btn.ghost{background:#fff;color:var(--indigo);border:1.5px solid var(--indigo-border)}
+  .btn.ghost:hover{background:var(--indigo-soft)}
+  .btn.green{background:var(--good)}
+  .btn.green:hover{background:#0c8459}
+  .btn.sm{padding:9px 16px;font-size:.85rem}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  .hint{background:#f6f7fd;border:1px solid var(--line);border-left:4px solid var(--indigo);border-radius:10px;padding:13px 16px;font-size:.85rem;color:var(--muted);margin-bottom:16px}
+  .hint b{color:var(--indigo)}
+  .parsed{font-size:.86rem;color:var(--good);font-weight:700}
+  .err{color:var(--bad);font-size:.86rem;font-weight:500}
+
+  .grid-scroll{max-height:300px;overflow-y:auto;padding:3px;margin-bottom:6px}
+  .num-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px}
+  @media(max-width:620px){.num-grid{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:420px){.num-grid{grid-template-columns:repeat(3,1fr)}}
+  .num-cell{border:1.5px solid var(--line-2);border-radius:13px;padding:11px 4px 9px;text-align:center;cursor:pointer;transition:.14s;background:#fff;position:relative}
+  .num-cell:hover{border-color:var(--indigo-border);background:#fafbff}
+  .num-cell.on{border-color:var(--indigo);background:var(--indigo-soft);box-shadow:var(--shadow-sm)}
+  .num-cell .no{font-size:1.18rem;font-weight:900;color:var(--ink);line-height:1}
+  .num-cell.on .no{color:var(--indigo)}
+  .num-cell .nm{font-size:.74rem;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .num-cell .dot{position:absolute;top:6px;right:7px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;font-size:.62rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center}
+  .num-cell .dot.warn{background:var(--warn)}
+  .num-cell .dot.bad{background:var(--bad)}
+
+  .copy-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  .copied{color:var(--good);font-size:.86rem;font-weight:700;opacity:0;transition:.3s}
+  .copied.show{opacity:1}
+  #reportBox{background:#fbfbfe;border:1px solid var(--line);border-radius:14px;padding:26px 30px;white-space:pre-wrap;line-height:1.85;font-size:.93rem;max-height:600px;overflow-y:auto}
+  .rhead{color:var(--indigo);font-weight:700;font-size:1.05rem;border-bottom:2px solid var(--line);padding-bottom:7px;margin:20px 0 12px}
+  .rhead:first-child{margin-top:0}
+  .pill{display:inline-block;padding:3px 12px;border-radius:20px;font-size:.74rem;font-weight:700;margin-left:8px;vertical-align:middle}
+  .pill.good{background:var(--good-bg);color:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .empty{text-align:center;color:var(--muted);padding:36px;font-size:.92rem}
+  .summary-tbl{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:8px}
+  .summary-tbl th,.summary-tbl td{border:1px solid var(--line);padding:7px 9px;text-align:center}
+  .summary-tbl th{background:#f3f4fb;color:var(--muted);font-weight:500}
+  .summary-tbl .bad-c{background:var(--bad-bg);color:var(--bad);font-weight:700}
+  .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <div class="logo">🌙</div>
+    <div>
+      <h1>송도 김엄마관리형독서실</h1>
+      <div class="tag">잠(졸음) 관리 · 학부모 리포트 시스템</div>
+    </div>
+  </div>
+</div>
+<div class="tabbar">
+  <div class="inner">
+    <div class="tab">졸음기록</div>
+    <div class="tab">오늘기록</div>
+    <div class="tab">벌점</div>
+    <div class="tab active">리포트</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-h"><span class="step">1</span> 기본 설정</div>
+    <div class="card-sub">보고서 주기를 선택하고 기간을 입력하세요.</div>
+    <div class="badge">📋 발송 설정</div>
+    <label style="font-size:.84rem;color:var(--muted);font-weight:500;display:block;margin-bottom:8px">보고서 주기</label>
+    <div class="selrow">
+      <div class="selcard on" id="optWeek" onclick="setCycle('week')">
+        <div class="big">주간</div><div class="small">이번 주 기록 · 매주 발송</div>
+      </div>
+      <div class="selcard" id="optMonth" onclick="setCycle('month')">
+        <div class="big">월간</div><div class="small">한 달 누적 · 매월 발송</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>기간 표기 (보고서에 표시됩니다)</label>
+      <input type="text" id="periodLabel" placeholder="예: 5월 3주차 / 2026년 5월" oninput="rebuild()">
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>독서실 이름</label>
+      <input type="text" id="academyName" value="송도 김엄마관리형독서실" oninput="rebuild()">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="step">2</span> 시트 데이터 붙여넣기</div>
+    <div class="card-sub">구글 시트에서 데이터 영역을 드래그·복사한 뒤 아래에 붙여넣으세요.</div>
+    <div class="hint">
+      <b>붙여넣는 범위:</b> 학생이름 · 번호/자리 · 총졸음 · 1교시~14교시 칸까지 한 번에 드래그하세요.
+      머리글 줄은 포함해도 자동으로 걸러집니다. 빈 칸은 0으로 처리됩니다.
+    </div>
+    <textarea id="pasteArea" placeholder="여기에 붙여넣기 (Ctrl+V)…"></textarea>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn" onclick="parseData()">📥 데이터 불러오기</button>
+      <button class="btn ghost sm" onclick="loadSample()">예시 데이터로 체험</button>
+      <span id="parseMsg"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="step">3</span> 학생 선택 &amp; 리포트</div>
+    <div class="card-sub">번호를 눌러 학생을 선택하면 리포트가 자동 작성됩니다.</div>
+    <div id="badgeArea"></div>
+    <div id="stuArea"><div class="empty">먼저 2단계에서 데이터를 불러오세요.</div></div>
+    <div id="reportArea" style="display:none;margin-top:22px">
+      <div class="copy-bar">
+        <button class="btn" onclick="copyOne()">📋 이 학생 리포트 복사</button>
+        <button class="btn green sm" onclick="copyAll()">전체 학생 일괄 복사</button>
+        <span class="copied" id="copiedMsg">✓ 복사되었습니다</span>
+      </div>
+      <div id="reportBox"></div>
+    </div>
+  </div>
+
+  <div class="foot">송도 김엄마관리형독서실 · 구글 시트는 입력용으로 그대로 사용하시고, 발송할 때만 이 도구에 붙여넣어 활용하세요.</div>
+</div>
+
+<script>
+const PERIODS=["08~09","09~10","10~11","11~12","13~14","14~15","15~16","16~17","17~18","19~20","20~21","21~22","22~23","23~24"];
+const NP=PERIODS.length;
+const MEAL=[4,5,9,10];
+let CYCLE='week';
+let students=[];
+let curIdx=-1;
+
+function setCycle(c){
+  CYCLE=c;
+  document.getElementById('optWeek').classList.toggle('on',c==='week');
+  document.getElementById('optMonth').classList.toggle('on',c==='month');
+  rebuild();
+}
+
+function loadSample(){
+  document.getElementById('pasteArea').value=
+`학생이름	번호/자리	총졸음	1교시	2교시	3교시	4교시	5교시	6교시	7교시	8교시	9교시	10교시	11교시	12교시	13교시	14교시
+한승주	1	0
+이윤지	2	2				1	1
+성예준	3	1					1
+백주호	4	4		1			1			1				1
+백진환	5	2	1		1
+송나현	6	5				1	1	1					1	1
+황지윤	7	8	1	1		1	1	1	1	2
+윤예서	8	1							1
+박성진	9	3				2	1`;
+  parseData();
+}
+
+function parseData(){
+  const raw=document.getElementById('pasteArea').value.trim();
+  const msg=document.getElementById('parseMsg');
+  if(!raw){ msg.innerHTML='<span class="err">붙여넣은 데이터가 없습니다.</span>'; return; }
+  const rows=raw.split(/\r?\n/).filter(r=>r.trim()!=='');
+  students=[];
+  for(const line of rows){
+    const cells=line.split('\t');
+    const name=(cells[0]||'').trim();
+    if(!name) continue;
+    if(/학생|이름|name/i.test(name) && isNaN(parseInt(cells[1]))) continue;
+    const seat=(cells[1]||'').trim();
+    const periods=[];
+    for(let j=0;j<NP;j++){ const v=parseInt(cells[3+j]); periods.push(isNaN(v)?0:v); }
+    const total=periods.reduce((a,b)=>a+b,0);
+    students.push({name,seat,periods,total});
+  }
+  if(!students.length){ msg.innerHTML='<span class="err">학생 데이터를 찾지 못했습니다. 탭으로 구분된 시트 데이터를 붙여넣었는지 확인하세요.</span>'; return; }
+  msg.innerHTML=`<span class="parsed">✓ 학생 ${students.length}명 불러옴</span>`;
+  curIdx=0;
+  renderStudents();
+  rebuild();
+}
+
+function renderStudents(){
+  const area=document.getElementById('stuArea');
+  const badge=document.getElementById('badgeArea');
+  if(!students.length){ area.innerHTML='<div class="empty">먼저 2단계에서 데이터를 불러오세요.</div>'; badge.innerHTML=''; return; }
+  const need=students.filter(s=>s.total>=6).length;
+  badge.innerHTML=`<div class="badge">👥 학생 ${students.length}명${need>0?` · ⚠ 관리필요 ${need}명`:''}</div>`;
+  let html='<div class="grid-scroll"><div class="num-grid">';
+  students.forEach((s,i)=>{
+    let dot='';
+    if(s.total>=6) dot=`<span class="dot bad">${s.total}</span>`;
+    else if(s.total>=3) dot=`<span class="dot warn">${s.total}</span>`;
+    const seatNo=s.seat||(i+1);
+    html+=`<div class="num-cell ${i===curIdx?'on':''}" onclick="pick(${i})">${dot}<div class="no">${seatNo}</div><div class="nm">${s.name}</div></div>`;
+  });
+  html+='</div></div>';
+  area.innerHTML=html;
+  document.getElementById('reportArea').style.display = curIdx>=0?'block':'none';
+}
+function pick(i){ curIdx=i; renderStudents(); rebuild(); }
+
+function rebuild(){
+  if(curIdx<0||!students[curIdx]) return;
+  document.getElementById('reportBox').innerHTML=reportHTML(students[curIdx]);
+}
+
+function analyze(s){
+  let maxV=Math.max(...s.periods);
+  let maxIdx=s.periods.indexOf(maxV);
+  const worst = maxV>0 ? PERIODS[maxIdx] : null;
+  const mealSum = MEAL.reduce((a,m)=>a+s.periods[m],0);
+  const grade = s.total<=2?'good':s.total<=5?'warn':'bad';
+  const gradeText = s.total<=2?'양호':s.total<=5?'주의':'관리필요';
+  return {worst,maxV,mealSum,grade,gradeText,mealHeavy: mealSum>0 && mealSum>=maxV, maxIdx};
+}
+function dietTips(mealHeavy){
+  const t=[
+    '점심·저녁의 흰쌀밥·면류 등 정제 탄수화물을 줄이고 현미·잡곡과 단백질(달걀·두부·닭가슴살)을 곁들이면 식후 혈당이 안정되어 졸음이 줄어듭니다.',
+    '식사량은 평소의 70~80%로. 과식은 소화에 혈류가 몰려 졸음을 유발합니다.',
+    '카페인(커피·녹차)은 오후 3시 이전까지만 섭취하도록 합니다.',
+    '졸릴 땐 당분 음료 대신 견과류·방울토마토 같은 가벼운 간식을 권장합니다.'
+  ];
+  if(mealHeavy) t.unshift('⚠ 식사 직후 졸음이 두드러집니다. 식후 바로 앉지 말고 5~10분 가볍게 걷거나 스트레칭한 뒤 자리에 앉도록 지도해 주세요.');
+  return t;
+}
+function solutionTips(a,total){
+  const s=[
+    '졸음이 오면 참지 말고 일어나 1~2분 움직이거나 세수를 하도록 합니다.',
+    '실내 환기를 자주 하고 책상 조명을 밝게 유지합니다.',
+    '취침·기상 시간을 일정하게 지키도록 합니다. 주말 늦잠은 평일 졸음을 키웁니다.',
+    '20분 내외의 짧은 낮잠은 도움이 되지만 30분 이상은 역효과입니다.'
+  ];
+  if(a.worst && ['13~14','14~15'].includes(a.worst)) s.push('점심 직후 시간대에는 어려운 암기 과목보다 문제풀이·필기 등 손을 쓰는 활동을 배치하면 졸음을 줄일 수 있습니다.');
+  if(total>5) s.unshift('🔴 졸음 빈도가 높은 편입니다. 청소년 권장 수면(8~9시간)이 확보되는지 가정 점검을 권장드립니다.');
+  return s;
+}
+function periodLabelText(){
+  const t=document.getElementById('periodLabel').value.trim();
+  if(t) return t;
+  return CYCLE==='week'?'이번 주':'이번 달';
+}
+
+function reportHTML(s){
+  const academy=document.getElementById('academyName').value.trim()||'송도 김엄마관리형독서실';
+  const a=analyze(s);
+  const label=periodLabelText();
+  const cycleWord=CYCLE==='week'?'주간':'월간';
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+
+  if(s.total===0){
+    return `<div class="rhead">📩 ${s.name} 학생 ${label} ${cycleWord} 잠 관리 리포트 <span class="pill good">우수</span></div>발송일: ${dateStr}\n\n안녕하세요, 학부모님. ${s.name} 학생은 해당 기간 동안 졸음 기록이 없습니다. 매우 좋은 집중 상태를 유지하고 있습니다! 👏\n계속해서 규칙적인 생활을 응원합니다.\n\n— ${academy} 드림`;
+  }
+
+  let tbl='<table class="summary-tbl"><tr><th>시간대</th>';
+  s.periods.forEach((v,i)=>{ if(v>0) tbl+=`<th>${PERIODS[i]}</th>`; });
+  tbl+='</tr><tr><td style="background:#f3f4fb;color:var(--muted)">졸음</td>';
+  s.periods.forEach((v,i)=>{ if(v>0) tbl+=`<td class="${i===a.maxIdx?'bad-c':''}">${v}회</td>`; });
+  tbl+='</tr></table>';
+
+  const diets=dietTips(a.mealHeavy).map(t=>'  • '+t).join('\n');
+  const sols=solutionTips(a,s.total).map(t=>'  • '+t).join('\n');
+
+  return `<div class="rhead">📩 ${s.name} 학생 ${label} ${cycleWord} 잠 관리 리포트 <span class="pill ${a.grade}">${a.gradeText}</span></div>발송일: ${dateStr}
+
+안녕하세요, 학부모님. ${s.name} 학생의 독서실 집중(졸음) 관리 결과를 공유드립니다.
+
+<div class="rhead">1. 졸음 현황 요약</div>  • 총 졸음 횟수: ${s.total}회
+  • 가장 졸음이 잦은 시간대: ${a.worst}시 (${a.maxV}회)
+  • 식사 직후 시간대 졸음: ${a.mealSum}회
+${tbl}
+
+<div class="rhead">2. 패턴 분석</div>  ${s.name} 학생은 주로 ${a.worst}시 무렵 집중력이 떨어지는 경향이 있습니다. ${a.mealHeavy?'특히 식사 직후 졸음이 두드러져 식단 조절이 가장 효과적일 것으로 보입니다.':'해당 시간대에 환기와 가벼운 움직임을 통한 각성 관리가 필요합니다.'}
+
+<div class="rhead">3. 식단 관리 안내 (잠이 안 오게 하는 식단)</div>${diets}
+
+<div class="rhead">4. 맞춤 해결책</div>${sols}
+
+<div class="rhead">5. 맺음말</div>  저희 ${academy}은 단순한 자리 제공을 넘어 학생 한 명 한 명의 컨디션과 집중 패턴까지 체계적으로 관리합니다. ${CYCLE==='week'?'다음 주':'다음 달'}에도 변화 추이를 분석해 다시 안내드리겠습니다. 가정에서의 작은 협조가 큰 변화를 만듭니다. 감사합니다.
+
+— ${academy} 드림`;
+}
+
+function reportPlain(s){
+  const html=reportHTML(s);
+  const tmp=document.createElement('div');
+  tmp.innerHTML=html
+    .replace(/<div class="rhead">/g,'\n■ ').replace(/<\/div>/g,'')
+    .replace(/<span class="pill[^"]*">/g,'[').replace(/<\/span>/g,']')
+    .replace(/<table[\s\S]*?<\/table>/g,m=>{
+      const cells=[...m.matchAll(/<t[hd][^>]*>(.*?)<\/t[hd]>/g)].map(x=>x[1]);
+      const half=cells.length/2;
+      const head=cells.slice(0,half), body=cells.slice(half);
+      let out='\n';
+      for(let i=0;i<half;i++) out+=`    ${head[i]}: ${body[i]}\n`;
+      return out;
+    });
+  return tmp.textContent.replace(/\n{3,}/g,'\n\n').trim();
+}
+function copyOne(){ if(curIdx<0) return; navigator.clipboard.writeText(reportPlain(students[curIdx])).then(showCopied); }
+function copyAll(){ const all=students.map(s=>reportPlain(s)).join('\n\n──────────────────────────\n\n'); navigator.clipboard.writeText(all).then(showCopied); }
+function showCopied(){ const m=document.getElementById('copiedMsg'); m.classList.add('show'); setTimeout(()=>m.classList.remove('show'),1800); }
+</script>
+</body>
+</html>
