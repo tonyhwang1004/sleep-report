@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>송도 김엄마관리형독서실 — 잠 관리 리포트</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
   :root{
@@ -108,6 +109,47 @@
   .summary-tbl th{background:#f3f4fb;color:var(--muted);font-weight:500}
   .summary-tbl .bad-c{background:var(--bad-bg);color:var(--bad);font-weight:700}
   .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:8px}
+
+  /* ===== 카드형 비주얼 리포트 (이미지 저장용) ===== */
+  .report-card{width:600px;max-width:100%;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(31,35,122,.13);font-family:'Noto Sans KR',sans-serif}
+  .rc-head{background:linear-gradient(135deg,#1f237a,#4338ca);color:#fff;padding:26px 30px 22px;position:relative}
+  .rc-head::after{content:"🌙";position:absolute;top:22px;right:26px;font-size:2.4rem;opacity:.55}
+  .rc-academy{font-size:.82rem;opacity:.82;font-weight:500;letter-spacing:.01em}
+  .rc-title{font-size:1.42rem;font-weight:900;margin-top:7px;line-height:1.3}
+  .rc-meta{font-size:.8rem;opacity:.78;margin-top:9px}
+  .rc-grade{display:inline-block;margin-top:13px;padding:6px 18px;border-radius:24px;font-size:.92rem;font-weight:700;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4)}
+  .rc-body{padding:26px 30px 12px}
+  .rc-greet{font-size:.92rem;color:var(--ink);line-height:1.7;margin-bottom:22px}
+  .rc-sec{margin-bottom:22px}
+  .rc-sec-t{display:flex;align-items:center;gap:9px;font-size:1.02rem;font-weight:800;color:var(--indigo);margin-bottom:11px}
+  .rc-sec-t .ic{width:26px;height:26px;border-radius:8px;background:var(--indigo-soft);display:flex;align-items:center;justify-content:center;font-size:.9rem}
+  .rc-stats{display:flex;gap:10px;flex-wrap:wrap}
+  .rc-stat{flex:1;min-width:120px;background:var(--indigo-soft);border-radius:13px;padding:14px 16px}
+  .rc-stat .l{font-size:.74rem;color:var(--muted);font-weight:500}
+  .rc-stat .v{font-size:1.32rem;font-weight:900;color:var(--ink);margin-top:3px}
+  .rc-stat .v small{font-size:.82rem;font-weight:700;color:var(--muted)}
+  .rc-bars{margin-top:6px}
+  .rc-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:.82rem}
+  .rc-bar-row .bl{width:66px;flex-shrink:0;color:var(--muted);font-weight:500}
+  .rc-bar-track{flex:1;background:var(--indigo-soft);border-radius:7px;height:20px;overflow:hidden}
+  .rc-bar-fill{height:100%;background:linear-gradient(90deg,var(--indigo),#6d63e0);border-radius:7px}
+  .rc-bar-row .bn{width:34px;text-align:right;font-weight:700;color:var(--ink)}
+  .rc-text{font-size:.9rem;color:#374151;line-height:1.72;background:#fafbff;border-radius:12px;padding:15px 17px;border:1px solid var(--line)}
+  .rc-list{list-style:none;padding:0;margin:0}
+  .rc-list li{font-size:.89rem;color:#374151;line-height:1.6;padding:8px 0 8px 24px;position:relative;border-bottom:1px solid #f1f2f8}
+  .rc-list li:last-child{border-bottom:none}
+  .rc-list li::before{content:"✓";position:absolute;left:2px;top:8px;color:var(--indigo);font-weight:900}
+  .rc-list li.warn::before{content:"⚠";color:var(--warn)}
+  .rc-foot{background:var(--indigo-soft);padding:18px 30px;text-align:center}
+  .rc-foot .fa{font-size:.95rem;font-weight:800;color:var(--indigo)}
+  .rc-foot .fm{font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.6}
+  .grade-good{background:var(--good)!important}
+  .grade-warn{background:var(--warn)!important}
+  .grade-bad{background:var(--bad)!important}
+  .rc-head.gh-good::before,.rc-head.gh-warn::before,.rc-head.gh-bad::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px}
+  .rc-head.gh-good::before{background:var(--good)}
+  .rc-head.gh-warn::before{background:var(--warn)}
+  .rc-head.gh-bad::before{background:var(--bad)}
 </style>
 </head>
 <body>
@@ -181,11 +223,16 @@
     <div id="stuArea"><div class="empty">먼저 2단계에서 데이터를 불러오세요.</div></div>
     <div id="reportArea" style="display:none;margin-top:22px">
       <div class="copy-bar">
-        <button class="btn" onclick="copyOne()">📋 이 학생 리포트 복사</button>
-        <button class="btn green sm" onclick="copyAll()">전체 학생 일괄 복사</button>
-        <span class="copied" id="copiedMsg">✓ 복사되었습니다</span>
+        <button class="btn green" onclick="saveImage()">🖼️ 이미지로 저장 (카톡 전송 추천)</button>
+        <button class="btn ghost sm" onclick="copyOne()">📋 글자로 복사</button>
+        <button class="btn ghost sm" onclick="copyAll()">전체 글자 일괄 복사</button>
+        <span class="copied" id="copiedMsg">✓ 완료되었습니다</span>
       </div>
-      <div id="reportBox"></div>
+      <div class="hint" style="margin:0 0 14px">
+        아래 카드를 그대로 보내려면 <b>「이미지로 저장」</b>을 눌러 사진으로 받은 뒤 카톡·문자에 첨부하세요.
+        텍스트로만 보내려면 <b>「글자로 복사」</b>를 쓰시면 됩니다.
+      </div>
+      <div id="cardWrap" style="overflow-x:auto;padding:4px"></div>
     </div>
   </div>
 
@@ -268,7 +315,7 @@ function pick(i){ curIdx=i; renderStudents(); rebuild(); }
 
 function rebuild(){
   if(curIdx<0||!students[curIdx]) return;
-  document.getElementById('reportBox').innerHTML=reportHTML(students[curIdx]);
+  document.getElementById('cardWrap').innerHTML=cardHTML(students[curIdx]);
 }
 
 function analyze(s){
@@ -312,6 +359,202 @@ function periodLabelText(){
   return CYCLE==='week'?'이번 주':'이번 달';
 }
 
+function cardHTML(s){
+  const academy=document.getElementById('academyName').value.trim()||'송도 김엄마관리형독서실';
+  const a=analyze(s);
+  const label=periodLabelText();
+  const cycleWord=CYCLE==='week'?'주간':'월간';
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+  const gradeText = s.total===0 ? '우수' : a.gradeText;
+  const gradeCls = s.total===0 ? 'good' : a.grade;
+
+  // 졸음 없음
+  if(s.total===0){
+    return `<div class="report-card" id="theCard">
+      <div class="rc-head gh-good"><div class="rc-academy">${academy}</div>
+        <div class="rc-title">${s.name} 학생 ${cycleWord} 잠 관리 리포트</div>
+        <div class="rc-meta">${label} · 발송일 ${dateStr}${s.seat?` · 자리 ${s.seat}`:''}</div>
+        <div class="rc-grade grade-good">우수 👏</div></div>
+      <div class="rc-body">
+        <div class="rc-greet">안녕하세요, 학부모님.<br><b>${s.name}</b> 학생은 해당 기간 동안 졸음 기록이 <b>없습니다.</b> 매우 좋은 집중 상태를 유지하고 있습니다. 계속해서 규칙적인 생활을 응원합니다!</div>
+      </div>
+      <div class="rc-foot"><div class="fa">${academy}</div><div class="fm">학생 한 명 한 명의 컨디션과 집중 패턴까지 체계적으로 관리합니다.</div></div>
+    </div>`;
+  }
+
+  // 시간대 막대 (값 있는 것만)
+  let bars='';
+  const maxV=Math.max(...s.periods)||1;
+  s.periods.forEach((v,i)=>{
+    if(v>0){
+      const pct=Math.round(v/maxV*100);
+      bars+=`<div class="rc-bar-row"><span class="bl">${PERIODS[i]}시</span><div class="rc-bar-track"><div class="rc-bar-fill" style="width:${pct}%"></div></div><span class="bn">${v}회</span></div>`;
+    }
+  });
+  const barsBlock = bars ? `<div class="rc-sec"><div class="rc-sec-t"><span class="ic">📊</span>시간대별 졸음</div><div class="rc-bars">${bars}</div></div>` : '';
+
+  // 패턴 문구
+  let pattern;
+  if(a.heavy) pattern=`${s.name} 학생은 특정 시간대에 국한되지 않고 하루 전반에 걸쳐 졸음이 누적되고 있습니다. 단순한 식곤증보다 절대적인 수면 부족이 의심되는 패턴으로, 생활 리듬 점검이 우선되어야 합니다.`;
+  else if(a.worst) pattern=`${s.name} 학생은 주로 <b>${a.worst}시</b> 무렵 집중력이 떨어지는 경향이 있습니다. ${a.mealHeavy?'특히 식사 직후 졸음이 두드러져 <b>식단 조절</b>이 가장 효과적일 것으로 보입니다.':'해당 시간대에 환기와 가벼운 움직임을 통한 각성 관리가 필요합니다.'}`;
+  else pattern=`${s.name} 학생은 특정 시간대보다 전반적으로 졸음이 나타나고 있습니다. 교시별 기록을 함께 남겨주시면 더 정확한 분석이 가능합니다.`;
+
+  const diets=dietTips(a.mealHeavy);
+  const sols=solutionTips(a,s.total);
+  const dietLi=diets.map(t=>`<li class="${t.startsWith('⚠')?'warn':''}">${t.replace(/^⚠\s*/,'')}</li>`).join('');
+  const solLi=sols.map(t=>`<li class="${/🔴|🟠/.test(t)?'warn':''}">${t.replace(/^[🔴🟠]\s*/,'')}</li>`).join('');
+
+  const statWorst = a.worst ? `<div class="rc-stat"><div class="l">최다 시간대</div><div class="v">${a.worst}<small> 시 (${a.maxV}회)</small></div></div>` : '';
+  const statMeal = a.mealSum>0 ? `<div class="rc-stat"><div class="l">식사 직후 졸음</div><div class="v">${a.mealSum}<small> 회</small></div></div>` : '';
+
+  return `<div class="report-card" id="theCard">
+    <div class="rc-head gh-${gradeCls}">
+      <div class="rc-academy">${academy}</div>
+      <div class="rc-title">${s.name} 학생 ${cycleWord} 잠 관리 리포트</div>
+      <div class="rc-meta">${label} · 발송일 ${dateStr}${s.seat?` · 자리 ${s.seat}`:''}</div>
+      <div class="rc-grade grade-${gradeCls}">${gradeText}</div>
+    </div>
+    <div class="rc-body">
+      <div class="rc-greet">안녕하세요, 학부모님. <b>${s.name}</b> 학생의 독서실 집중(졸음) 관리 결과를 공유드립니다.</div>
+
+      <div class="rc-sec"><div class="rc-sec-t"><span class="ic">📌</span>졸음 현황 요약</div>
+        <div class="rc-stats">
+          <div class="rc-stat"><div class="l">총 졸음 횟수</div><div class="v">${s.total}<small> 회</small></div></div>
+          ${statWorst}${statMeal}
+        </div>
+      </div>
+
+      ${barsBlock}
+
+      <div class="rc-sec"><div class="rc-sec-t"><span class="ic">🔍</span>패턴 분석</div>
+        <div class="rc-text">${pattern}</div>
+      </div>
+
+      <div class="rc-sec"><div class="rc-sec-t"><span class="ic">🍽️</span>식단 관리 안내 <span style="font-size:.78rem;color:var(--muted);font-weight:500">(잠이 안 오게 하는 식단)</span></div>
+        <ul class="rc-list">${dietLi}</ul>
+      </div>
+
+      <div class="rc-sec"><div class="rc-sec-t"><span class="ic">💡</span>맞춤 해결책</div>
+        <ul class="rc-list">${solLi}</ul>
+      </div>
+    </div>
+    <div class="rc-foot"><div class="fa">${academy}</div><div class="fm">학생 한 명 한 명의 컨디션과 집중 패턴까지 체계적으로 관리합니다.<br>${CYCLE==='week'?'다음 주':'다음 달'}에도 변화 추이를 분석해 안내드리겠습니다.</div></div>
+  </div>`;
+}
+
+function saveImage(){
+  if(curIdx<0) return;
+  const card=document.getElementById('theCard');
+  if(!card){ alert('학생을 먼저 선택하세요.'); return; }
+  const name=students[curIdx].name;
+  const btn=event.target;
+  const orig=btn.textContent; btn.textContent='⏳ 이미지 만드는 중…'; btn.disabled=true;
+  html2canvas(card,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(canvas=>{
+    canvas.toBlob(blob=>{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=`${name}_잠관리리포트.png`; a.click();
+      URL.revokeObjectURL(url);
+      btn.textContent=orig; btn.disabled=false;
+      showCopied();
+    });
+  }).catch(e=>{ alert('이미지 저장 중 오류가 발생했습니다. 다시 시도해 주세요.'); btn.textContent=orig; btn.disabled=false; });
+}
+
+function reportText(s){
+  // 카카오톡·문자 발송용으로 깔끔하게 포장된 텍스트
+  const academy=document.getElementById('academyName').value.trim()||'송도 김엄마관리형독서실';
+  const a=analyze(s);
+  const label=periodLabelText();
+  const cycleWord=CYCLE==='week'?'주간':'월간';
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}. ${String(today.getMonth()+1).padStart(2,'0')}. ${String(today.getDate()).padStart(2,'0')}`;
+  const LINE='━━━━━━━━━━━━━━━';
+  const gradeEmoji={good:'🟢',warn:'🟡',bad:'🔴'};
+
+  if(s.total===0){
+    return `🌙 ${academy}
+${label} ${cycleWord} 잠 관리 리포트
+${LINE}
+👤 ${s.name} 학생${s.seat?` (자리 ${s.seat})`:''}
+🟢 등급: 우수
+🗓 ${dateStr}
+${LINE}
+
+안녕하세요, 학부모님 😊
+${s.name} 학생은 이번 기간 동안 졸음 기록이 한 건도 없었습니다.
+아주 좋은 집중 상태를 유지하고 있어요! 👏👏
+
+계속해서 규칙적인 생활을 이어가도록 함께 응원해 주세요.
+
+${LINE}
+${academy} 드림`;
+  }
+
+  // 시간대 표 (텍스트)
+  let timeLines='';
+  s.periods.forEach((v,i)=>{
+    if(v>0){
+      const mark = (i===a.maxIdx) ? ' ⬅ 최다' : '';
+      timeLines += `   · ${PERIODS[i]}시 — ${v}회${mark}\n`;
+    }
+  });
+
+  const diets=dietTips(a.mealHeavy).map(t=>'   · '+t).join('\n');
+  const sols=solutionTips(a,s.total).map(t=>'   · '+t).join('\n');
+
+  // 패턴 분석 문장
+  let pattern;
+  if(a.heavy){
+    pattern=`${s.name} 학생은 특정 시간대를 넘어 하루 전반에 걸쳐 졸음이 누적되고 있습니다. 단순한 식곤증보다 절대적인 수면 부족이 의심되어, 생활 리듬 점검이 우선되어야 합니다.`;
+  } else if(a.worst){
+    pattern=`${s.name} 학생은 주로 ${a.worst}시 무렵 집중력이 떨어지는 경향이 있습니다. ${a.mealHeavy?'특히 식사 직후 졸음이 두드러져 식단 조절이 가장 효과적일 것으로 보입니다.':'해당 시간대에 환기와 가벼운 움직임을 통한 각성 관리가 필요합니다.'}`;
+  } else {
+    pattern=`${s.name} 학생은 특정 시간대보다 전반적으로 졸음이 나타나고 있습니다. 교시별 기록을 함께 남겨주시면 더 정확한 분석이 가능합니다.`;
+  }
+
+  let body = `🌙 ${academy}
+${label} ${cycleWord} 잠 관리 리포트
+${LINE}
+👤 ${s.name} 학생${s.seat?` (자리 ${s.seat})`:''}
+${gradeEmoji[a.grade]} 등급: ${a.gradeText}
+🗓 ${dateStr}
+${LINE}
+
+안녕하세요, 학부모님 😊
+${s.name} 학생의 독서실 집중(졸음) 관리 결과를 공유드립니다.
+
+📊 졸음 현황
+   · 총 졸음: ${s.total}회
+`;
+  if(a.worst) body += `   · 가장 잦은 시간대: ${a.worst}시 (${a.maxV}회)\n`;
+  if(a.mealSum>0) body += `   · 식사 직후 졸음: ${a.mealSum}회\n`;
+  if(timeLines) body += `\n🕐 시간대별 기록\n${timeLines}`;
+
+  body += `
+🔍 패턴 분석
+   ${pattern}
+
+🍱 식단 관리 (잠이 안 오게 하는 식단)
+${diets}
+
+💡 맞춤 해결책
+${sols}
+
+${LINE}
+저희 ${academy}은 단순한 자리 제공을 넘어,
+학생 한 명 한 명의 컨디션과 집중 패턴까지
+체계적으로 관리하고 있습니다.
+
+${CYCLE==='week'?'다음 주':'다음 달'}에도 변화 추이를 분석해 다시 안내드리겠습니다.
+가정에서의 작은 협조가 큰 변화를 만듭니다. 감사합니다. 🙏
+
+${academy} 드림`;
+
+  return body;
+}
+
 function reportHTML(s){
   const academy=document.getElementById('academyName').value.trim()||'송도 김엄마관리형독서실';
   const a=analyze(s);
@@ -338,7 +581,7 @@ function reportHTML(s){
 안녕하세요, 학부모님. ${s.name} 학생의 독서실 집중(졸음) 관리 결과를 공유드립니다.
 
 <div class="rhead">1. 졸음 현황 요약</div>  • 총 졸음 횟수: ${s.total}회${s.seat?` (자리번호 ${s.seat})`:''}
-${a.worst?`  • 가장 졸음이 잦은 시간대: ${a.worst}시 (${a.maxV}회)\n`:''}  • 식사 직후 시간대 졸음: ${a.mealSum}회
+${a.worst?`  • 가장 졸음이 잦은 시간대: ${a.worst}시 (${a.maxV}회)\n`:''}${a.mealSum>0?`  • 식사 직후 시간대 졸음: ${a.mealSum}회\n`:''}
 ${tbl}
 
 <div class="rhead">2. 패턴 분석</div>  ${a.heavy
@@ -356,24 +599,8 @@ ${tbl}
 — ${academy} 드림`;
 }
 
-function reportPlain(s){
-  const html=reportHTML(s);
-  const tmp=document.createElement('div');
-  tmp.innerHTML=html
-    .replace(/<div class="rhead">/g,'\n■ ').replace(/<\/div>/g,'')
-    .replace(/<span class="pill[^"]*">/g,'[').replace(/<\/span>/g,']')
-    .replace(/<table[\s\S]*?<\/table>/g,m=>{
-      const cells=[...m.matchAll(/<t[hd][^>]*>(.*?)<\/t[hd]>/g)].map(x=>x[1]);
-      const half=cells.length/2;
-      const head=cells.slice(0,half), body=cells.slice(half);
-      let out='\n';
-      for(let i=0;i<half;i++) out+=`    ${head[i]}: ${body[i]}\n`;
-      return out;
-    });
-  return tmp.textContent.replace(/\n{3,}/g,'\n\n').trim();
-}
-function copyOne(){ if(curIdx<0) return; navigator.clipboard.writeText(reportPlain(students[curIdx])).then(showCopied); }
-function copyAll(){ const all=students.map(s=>reportPlain(s)).join('\n\n──────────────────────────\n\n'); navigator.clipboard.writeText(all).then(showCopied); }
+function copyOne(){ if(curIdx<0) return; navigator.clipboard.writeText(reportText(students[curIdx])).then(showCopied); }
+function copyAll(){ const all=students.map(s=>reportText(s)).join('\n\n\n'); navigator.clipboard.writeText(all).then(showCopied); }
 function showCopied(){ const m=document.getElementById('copiedMsg'); m.classList.add('show'); setTimeout(()=>m.classList.remove('show'),1800); }
 </script>
 </body>
