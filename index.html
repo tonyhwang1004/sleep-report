@@ -283,8 +283,11 @@ function parseData(){
     const seat=(cells[1]||'').trim();
     const periods=[];
     for(let j=0;j<NP;j++){ const v=parseInt(cells[3+j]); periods.push(isNaN(v)?0:v); }
-    const total=periods.reduce((a,b)=>a+b,0);
-    students.push({name,seat,periods,total});
+    const periodSum=periods.reduce((a,b)=>a+b,0);
+    // 총졸음은 시트의 '총졸음횟수' 칸(C열)을 우선 사용. 비어 있으면 교시 합으로 대체.
+    const colTotal=parseInt(cells[2]);
+    const total=isNaN(colTotal)?periodSum:colTotal;
+    students.push({name,seat,periods,total,periodSum});
   }
   if(!students.length){ msg.innerHTML='<span class="err">학생 데이터를 찾지 못했습니다. 탭으로 구분된 시트 데이터를 붙여넣었는지 확인하세요.</span>'; return; }
   msg.innerHTML=`<span class="parsed">✓ 학생 ${students.length}명 불러옴</span>`;
@@ -402,8 +405,8 @@ function cardHTML(s){
 
   const diets=dietTips(a.mealHeavy);
   const sols=solutionTips(a,s.total);
-  const dietLi=diets.map(t=>`<li class="${t.startsWith('⚠')?'warn':''}">${t.replace(/^⚠\s*/,'')}</li>`).join('');
-  const solLi=sols.map(t=>`<li class="${/🔴|🟠/.test(t)?'warn':''}">${t.replace(/^[🔴🟠]\s*/,'')}</li>`).join('');
+  const dietLi=diets.map(t=>`<li class="${t.startsWith('⚠')?'warn':''}">${t.replace('⚠','').trim()}</li>`).join('');
+  const solLi=sols.map(t=>`<li class="${/🔴|🟠/.test(t)?'warn':''}">${t.replace('🔴','').replace('🟠','').trim()}</li>`).join('');
 
   const statWorst = a.worst ? `<div class="rc-stat"><div class="l">최다 시간대</div><div class="v">${a.worst}<small> 시 (${a.maxV}회)</small></div></div>` : '';
   const statMeal = a.mealSum>0 ? `<div class="rc-stat"><div class="l">식사 직후 졸음</div><div class="v">${a.mealSum}<small> 회</small></div></div>` : '';
