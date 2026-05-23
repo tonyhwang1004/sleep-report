@@ -1301,6 +1301,7 @@ let state = {
       startWeight: null,
       targetWeight: null,
       activityLevel: 'light', // sedentary, light, moderate, active
+      goalType: 'loss', // loss(감량), maintain(유지), gain(증량)
       goalPace: 0.5, // kg per week
       allergies: [],
       avoidFoods: '',
@@ -1374,27 +1375,7 @@ function loadAll() {
       if (!state.settings) state.settings = { goal: 1500, waterGoal: 2000, weightUnit: 'kg', apiKey: '', openaiKey: '', cycle: { lastPeriod: null, length: 28, duration: 5 } };
       if (state.settings.openaiKey === undefined) state.settings.openaiKey = '';
       if (!state.settings.coupangLinks) state.settings.coupangLinks = {};
-      // 기본 제공 파트너스 링크 (사용자가 직접 설정 안 했으면 적용)
-      const DEFAULT_COUPANG_LINKS = {
-        chicken_breast: 'https://link.coupang.com/a/dVjfFddIku',
-        greek_yogurt: 'https://link.coupang.com/a/dVkb3QiJ8S',
-        protein_powder: 'https://link.coupang.com/a/dVksaVdOTI',
-        tofu: 'https://link.coupang.com/a/dVkt0EDfSm',
-        eggs: 'https://link.coupang.com/a/dVkv0W0MvY',
-        oatmeal: 'https://link.coupang.com/a/dVklx8OCe4',
-        quinoa: 'https://link.coupang.com/a/dVkxImD8BU',
-        sweet_potato: 'https://link.coupang.com/a/dVkzr67HgG',
-        blueberry: 'https://link.coupang.com/a/dVkornEsAS',
-        avocado: 'https://link.coupang.com/a/dVkA878CSy',
-        chia: 'https://link.coupang.com/a/dVkCKf7iO4',
-        almond: 'https://link.coupang.com/a/dVkqrb5Gr6',
-        flaxseed: 'https://link.coupang.com/a/dY0uyfPQnQ',
-        chickpea: 'https://link.coupang.com/a/dY0wOhCVa0',
-        walnut: 'https://link.coupang.com/a/dY0zE4etCm',
-        olive_oil: 'https://link.coupang.com/a/dY0CwHIIrA',
-        psyllium: 'https://link.coupang.com/a/dY0E57pafY',
-        kombucha: 'https://link.coupang.com/a/dY0G9AA4ia'
-      };
+      // 저장 데이터에 없는 링크는 기본값으로 채움
       Object.keys(DEFAULT_COUPANG_LINKS).forEach(k => {
         if (!state.settings.coupangLinks[k]) state.settings.coupangLinks[k] = DEFAULT_COUPANG_LINKS[k];
       });
@@ -1403,11 +1384,12 @@ function loadAll() {
           onboarded: false,
           name: '', gender: '여성', age: null, height: null,
           startWeight: null, targetWeight: null,
-          activityLevel: 'light', goalPace: 0.5,
+          activityLevel: 'light', goalType: 'loss', goalPace: 0.5,
           allergies: [], avoidFoods: '', preferredStyle: [],
           exerciseHabit: 'none', dietHistory: '', voiceEnabled: true
         };
       }
+      if (state.settings.profile && !state.settings.profile.goalType) state.settings.profile.goalType = 'loss';
       if (!state.settings.cycle) state.settings.cycle = { lastPeriod: null, length: 28, duration: 5 };
       if (!state.daily) state.daily = {};
     }
@@ -2437,6 +2419,8 @@ let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
 let recordingMode = 'browser'; // 'whisper' or 'browser'
+let manualStop = false; // 사용자가 버튼을 눌러 직접 멈췄는지
+let browserTranscript = ''; // 브라우저 음성인식 누적 텍스트
 
 function setupSpeech() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2445,25 +2429,42 @@ function setupSpeech() {
   }
   recognition = new SpeechRecognition();
   recognition.lang = 'ko-KR';
-  recognition.continuous = false;
+  recognition.continuous = true;      // 계속 듣기 (안드로이드 자동종료 방지)
   recognition.interimResults = true;
 
   recognition.onresult = (event) => {
+    // 녹음이 끝날 때까지는 화면에 글자를 보여주지 않고 누적만 함
     let transcript = '';
     for (let i = 0; i < event.results.length; i++) {
       transcript += event.results[i][0].transcript;
     }
-    document.getElementById('ai-input').value = transcript;
+    browserTranscript = transcript;
+    // 듣는 중 표시만 갱신 (글자는 아직 안 보여줌)
+    const label = document.getElementById('voice-label');
+    if (label) label.textContent = '듣는 중...';
   };
 
   recognition.onend = () => {
+    // 사용자가 직접 멈춘 게 아니면 자동 재시작 (안드로이드가 멋대로 끊는 것 방지)
+    if (isRecording && !manualStop) {
+      try { recognition.start(); return; } catch (e) {}
+    }
+    // 진짜 종료: 이때 비로소 누적된 텍스트를 입력창에 표시
     isRecording = false;
+    const input = document.getElementById('ai-input');
+    if (input && browserTranscript) input.value = browserTranscript;
     document.getElementById('voice-btn').classList.remove('recording');
     document.getElementById('voice-label').textContent = '음성';
   };
 
-  recognition.onerror = () => {
+  recognition.onerror = (e) => {
+    // no-speech 등 일시 오류는 재시작으로 버팀
+    if (isRecording && !manualStop && e.error !== 'not-allowed' && e.error !== 'service-not-allowed') {
+      try { recognition.start(); return; } catch (err) {}
+    }
     isRecording = false;
+    const input = document.getElementById('ai-input');
+    if (input && browserTranscript) input.value = browserTranscript;
     document.getElementById('voice-btn').classList.remove('recording');
     document.getElementById('voice-label').textContent = '음성';
   };
@@ -2500,12 +2501,12 @@ async function startWhisperRecording() {
     isRecording = true;
     recordingMode = 'whisper';
     document.getElementById('voice-btn').classList.add('recording');
-    document.getElementById('voice-label').textContent = '듣는 중...';
+    document.getElementById('voice-label').textContent = '듣는 중... (다 말하면 다시 누르기)';
     document.getElementById('ai-input').value = '';
     const status = document.getElementById('ai-status');
     status.style.display = 'block';
     status.className = 'ai-status';
-    status.textContent = '🎤 녹음 중... 음성 버튼을 다시 누르면 종료';
+    status.textContent = '🎤 녹음 중이에요. 천천히 말씀하시고, 다 끝나면 음성 버튼을 다시 누르세요.';
     
   } catch (err) {
     console.error('마이크 접근 실패:', err);
@@ -2562,18 +2563,19 @@ document.getElementById('voice-btn').onclick = async () => {
       document.getElementById('voice-btn').classList.remove('recording');
       document.getElementById('voice-label').textContent = '음성';
     } else if (recognition) {
+      manualStop = true;          // 사용자가 직접 멈춤 → 재시작 안 함
       recognition.stop();
     }
     return;
   }
   
-  // OpenAI 키가 있으면 Whisper 사용 (정확도 높음)
+  // OpenAI 키가 있으면 Whisper 사용 (정확도 높음, 안드로이드 끊김 없음)
   if (state.settings.openaiKey && state.settings.openaiKey.startsWith('sk-')) {
     await startWhisperRecording();
     return;
   }
   
-  // 폴백: 브라우저 기본 음성 인식
+  // 폴백: 브라우저 기본 음성 인식 (continuous + 수동종료)
   if (!recognition) {
     alert('이 브라우저는 음성 인식을 지원하지 않아요. 크롬을 쓰거나 설정에서 OpenAI Whisper API 키를 등록해주세요.');
     return;
@@ -2581,10 +2583,12 @@ document.getElementById('voice-btn').onclick = async () => {
   document.getElementById('ai-input').value = '';
   document.getElementById('ai-status').style.display = 'none';
   isRecording = true;
+  manualStop = false;
+  browserTranscript = '';
   recordingMode = 'browser';
   document.getElementById('voice-btn').classList.add('recording');
-  document.getElementById('voice-label').textContent = '듣는 중...';
-  recognition.start();
+  document.getElementById('voice-label').textContent = '듣는 중... (다 말하면 다시 누르기)';
+  try { recognition.start(); } catch (e) {}
 };
 
 document.getElementById('ai-submit').onclick = () => {
@@ -2695,12 +2699,14 @@ function buildCoachContext() {
   });
   (day.exercise || []).forEach(e => exCal += e.cal || 0);
   
-  const proteinGoal = profile.startWeight ? Math.round(profile.startWeight * 1.6) : 80;
+  const proteinGoal = getProteinGoal(profile);
   const exList = (day.exercise||[]).map(e => `${e.name} ${e.duration}분${e.distance?' '+e.distance+'km':''}`).join(', ');
   const condList = (day.conditions||[]).map(c => `${c.time} ${(c.tags||[]).join(',')}${c.note?' "'+c.note+'"':''}`).join(' | ');
   
   let ctx = `[사용자 프로필]\n`;
   if (profile.name) ctx += `이름: ${profile.name}\n`;
+  const goalTypeLabel = { loss: '감량(살빼기)', maintain: '체중유지', gain: '증량(근육늘리기)' }[profile.goalType || 'loss'];
+  ctx += `목표: ${goalTypeLabel}\n`;
   if (profile.height) ctx += `키 ${profile.height}cm, 현재 ${profile.startWeight}kg → 목표 ${profile.targetWeight}kg\n`;
   ctx += `하루 목표: ${state.settings.goal}kcal, 단백질 권장 ${proteinGoal}g\n`;
   if (profile.avoidFoods) ctx += `못 먹는 음식: ${profile.avoidFoods}\n`;
@@ -3139,7 +3145,7 @@ function renderNutritionAnalysis() {
   
   // 목표 계산
   const goal = state.settings.goal;
-  const proteinGoal = Math.round(profile.startWeight * 1.6); // g
+  const proteinGoal = getProteinGoal(profile);
   const remainingCal = goal - netCal;
   // 탄단지 목표 (단백 25%, 탄수 45%, 지방 30%)
   const carbGoal = Math.round(goal * 0.45 / 4);
@@ -3229,10 +3235,35 @@ function renderNutritionAnalysis() {
 // 오늘의 정밀 영양 분석 끝
 
 // 쿠팡 링크 생성 (본인 링크 있으면 그것, 없으면 검색 페이지)
+// 기본 제공 파트너스 링크 (전역 - getCoupangLink 폴백용)
+const DEFAULT_COUPANG_LINKS = {
+  chicken_breast: 'https://link.coupang.com/a/dVjfFddIku',
+  greek_yogurt: 'https://link.coupang.com/a/dVkb3QiJ8S',
+  protein_powder: 'https://link.coupang.com/a/dVksaVdOTI',
+  tofu: 'https://link.coupang.com/a/dVkt0EDfSm',
+  eggs: 'https://link.coupang.com/a/dVkv0W0MvY',
+  oatmeal: 'https://link.coupang.com/a/dVklx8OCe4',
+  quinoa: 'https://link.coupang.com/a/dVkxImD8BU',
+  sweet_potato: 'https://link.coupang.com/a/dVkzr67HgG',
+  blueberry: 'https://link.coupang.com/a/dVkornEsAS',
+  avocado: 'https://link.coupang.com/a/dVkA878CSy',
+  chia: 'https://link.coupang.com/a/dVkCKf7iO4',
+  almond: 'https://link.coupang.com/a/dVkqrb5Gr6',
+  flaxseed: 'https://link.coupang.com/a/dY0uyfPQnQ',
+  chickpea: 'https://link.coupang.com/a/dY0wOhCVa0',
+  walnut: 'https://link.coupang.com/a/dY0zE4etCm',
+  olive_oil: 'https://link.coupang.com/a/dY0CwHIIrA',
+  psyllium: 'https://link.coupang.com/a/dY0E57pafY',
+  kombucha: 'https://link.coupang.com/a/dY0G9AA4ia'
+};
+
 function getCoupangLink(food) {
-  const userLink = state.settings.coupangLinks[food.key];
+  // 1순위: 사용자가 직접 저장한 링크
+  const userLink = state.settings.coupangLinks && state.settings.coupangLinks[food.key];
   if (userLink && userLink.trim()) return userLink.trim();
-  return null; // 링크 미설정
+  // 2순위: 기본 제공 링크 (저장 데이터가 비어있어도 항상 작동)
+  if (DEFAULT_COUPANG_LINKS[food.key]) return DEFAULT_COUPANG_LINKS[food.key];
+  return null;
 }
 
 function openSuperfood(key) {
@@ -3242,7 +3273,6 @@ function openSuperfood(key) {
   if (link) {
     window.open(link, '_blank');
   } else {
-    // 링크 미설정 시 안내
     alert(`"${food.name}" 추천 링크가 아직 설정되지 않았어요.\n\n설정 → 쿠팡 파트너스 링크에서 본인 링크를 등록하면 바로 연결됩니다.`);
   }
 }
@@ -3317,7 +3347,7 @@ function getRecommendedCategories() {
   }));
   
   const profile = state.settings.profile;
-  const proteinGoal = profile.startWeight ? profile.startWeight * 1.6 : 80;
+  const proteinGoal = getProteinGoal(profile);
   
   const cats = [];
   // 단백질 부족하면 단백질 우선
@@ -3337,7 +3367,7 @@ function renderSuperfoodSection() {
   let p = 0;
   Object.values(day.foods).forEach(meal => meal.forEach(item => p += item.p || 0));
   const profile = state.settings.profile;
-  const proteinGoal = profile.startWeight ? Math.round(profile.startWeight * 1.6) : 80;
+  const proteinGoal = getProteinGoal(profile);
   const proteinShort = proteinGoal - Math.round(p);
   
   let contextMsg = '';
@@ -4017,8 +4047,25 @@ function calculateTargetCalories(profile) {
   const bmr = calculateBMR(profile);
   if (!bmr) return null;
   const tdee = bmr * (ACTIVITY_MULTIPLIERS[profile.activityLevel] || 1.375);
-  const deficit = (profile.goalPace * 7700) / 7; // 1kg = 7700kcal, /주 -> /일
-  return Math.round(tdee - deficit);
+  const goalType = profile.goalType || 'loss';
+  if (goalType === 'maintain') {
+    return Math.round(tdee); // 유지: TDEE 그대로
+  } else if (goalType === 'gain') {
+    // 증량: 하루 약 +300~350kcal (주당 약 0.25-0.3kg 근육 위주 증가)
+    return Math.round(tdee + 350);
+  } else {
+    // 감량: 페이스만큼 적자
+    const deficit = (profile.goalPace * 7700) / 7;
+    return Math.round(tdee - deficit);
+  }
+}
+
+function getProteinGoal(profile) {
+  if (!profile || !profile.startWeight) return 80;
+  const goalType = profile.goalType || 'loss';
+  // 증량: 2.0g/kg, 감량: 1.6g/kg, 유지: 1.4g/kg
+  const factor = goalType === 'gain' ? 2.0 : (goalType === 'maintain' ? 1.4 : 1.6);
+  return Math.round(profile.startWeight * factor);
 }
 
 function calculateMonthsToGoal(profile) {
@@ -4070,6 +4117,18 @@ const ONBOARDING_STEPS = [
     ]
   },
   {
+    id: 'goalType',
+    title: '목표가 무엇인가요?',
+    message: '체중을 줄이고 싶으신가요, 유지하고 싶으신가요, 아니면 근육을 늘리고 싶으신가요? 목표에 따라 칼로리와 영양을 다르게 추천해드려요.',
+    fields: [
+      { type: 'radio', key: 'goalType', label: '나의 목표', options: [
+        { v: 'loss', l: '🔻 감량 (살 빼기)' },
+        { v: 'maintain', l: '⚖️ 유지 (현 체중 유지)' },
+        { v: 'gain', l: '💪 증량 (근육 늘리기)' }
+      ], required: true, default: 'loss' }
+    ]
+  },
+  {
     id: 'weight',
     title: '체중 정보',
     message: '현재 체중과 목표 체중을 알려주세요. 무리한 목표보다는 현실적인 목표가 더 좋아요.',
@@ -4080,10 +4139,10 @@ const ONBOARDING_STEPS = [
   },
   {
     id: 'pace',
-    title: '감량 속도',
-    message: '얼마나 빠르게 빼고 싶으세요? 주당 0.5kg이 가장 건강하고 요요가 적어요.',
+    title: '진행 속도',
+    message: '얼마나 빠르게 진행하고 싶으세요? 주당 0.5kg이 가장 건강하고 요요가 적어요. (유지 목표면 속도는 무시돼요)',
     fields: [
-      { type: 'radio', key: 'goalPace', label: '목표 감량 속도', options: [
+      { type: 'radio', key: 'goalPace', label: '목표 속도 (주당)', options: [
         { v: 0.25, l: '천천히 (주 0.25kg) - 가장 안전' },
         { v: 0.5, l: '보통 (주 0.5kg) - 권장 ⭐' },
         { v: 0.75, l: '빠르게 (주 0.75kg)' },
@@ -4346,6 +4405,7 @@ async function completeOnboarding() {
     startWeight: parseFloat(onboardingData.startWeight) || null,
     targetWeight: parseFloat(onboardingData.targetWeight) || null,
     activityLevel: onboardingData.activityLevel || 'light',
+    goalType: onboardingData.goalType || 'loss',
     goalPace: parseFloat(onboardingData.goalPace) || 0.5,
     allergies: onboardingData.allergies || [],
     avoidFoods: onboardingData.avoidFoods || '',
@@ -4379,17 +4439,55 @@ async function showAnalysisResult() {
   const tdee = bmr ? Math.round(bmr * (ACTIVITY_MULTIPLIERS[p.activityLevel] || 1.375)) : null;
   const target = calculateTargetCalories(p);
   const months = calculateMonthsToGoal(p);
-  const totalLoss = p.startWeight && p.targetWeight ? (p.startWeight - p.targetWeight).toFixed(1) : 0;
+  const goalType = p.goalType || 'loss';
+  const proteinGoal = getProteinGoal(p);
   
-  // 단백질 권장량 (체중 1kg당 1.6g - 다이어트 중 권장)
-  const proteinGoal = p.startWeight ? Math.round(p.startWeight * 1.6) : 0;
+  // 목표 유형별 문구
+  const goalLabels = { loss: '감량', maintain: '유지', gain: '증량(근육 늘리기)' };
+  const goalLabel = goalLabels[goalType];
+  const weightDiff = p.startWeight && p.targetWeight ? (p.targetWeight - p.startWeight) : 0;
+  
+  let targetDesc = '';
+  let calorieNote = '';
+  if (goalType === 'maintain') {
+    targetDesc = '현 체중 유지 칼로리';
+    calorieNote = `체중 유지 페이스<br>단백질 하루 ${proteinGoal}g 권장`;
+  } else if (goalType === 'gain') {
+    targetDesc = '근육 증량 칼로리';
+    calorieNote = `근육 증가를 위해 +350kcal<br>단백질 하루 ${proteinGoal}g 이상 (근육 합성)`;
+  } else {
+    targetDesc = '감량 칼로리';
+    calorieNote = `주당 ${p.goalPace}kg 감량 페이스<br>단백질 하루 ${proteinGoal}g 이상 권장`;
+  }
+  
+  // 증량/유지/감량별 팁
+  let tips = '';
+  if (goalType === 'gain') {
+    tips = `💪 <strong>증량 팁</strong><br>
+      • 단백질을 끼니마다 나눠서 충분히<br>
+      • 운동 후 30분 내 단백질 섭취<br>
+      • 웨이트 트레이닝 병행이 핵심<br>
+      • 잠 7시간 이상 (근육은 잘 때 큰다)`;
+  } else if (goalType === 'maintain') {
+    tips = `⚖️ <strong>유지 팁</strong><br>
+      • 현재 식습관 균형 유지<br>
+      • 단백질 충분히 (근육 보존)<br>
+      • 규칙적인 운동<br>
+      • 체중 변화 모니터링`;
+  } else {
+    tips = `💡 <strong>시작 팁</strong><br>
+      • 매일 아침 같은 시간에 체중 재기<br>
+      • 하루 물 2L 이상 마시기<br>
+      • 잠 7시간 이상 자기<br>
+      • 무리하지 말고 천천히 ❤️`;
+  }
   
   const modal = document.getElementById('modal');
   modal.innerHTML = `
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-size:32px;margin-bottom:8px;">✨</div>
       <div class="modal-title" style="text-align:center;">분석이 완료됐어요!</div>
-      <div style="font-size:13px;color:var(--ink-soft);">${p.name ? p.name + '님 ' : ''}맞춤 분석 결과예요</div>
+      <div style="font-size:13px;color:var(--ink-soft);">${p.name ? p.name + '님 ' : ''}${goalLabel} 목표 맞춤 분석이에요</div>
     </div>
     
     <div style="background:var(--accent-bg);padding:14px;border-radius:var(--radius);margin-bottom:14px;">
@@ -4405,28 +4503,23 @@ async function showAnalysisResult() {
     </div>
     
     <div style="background:linear-gradient(135deg, var(--gold-bg) 0%, var(--accent-bg) 100%);padding:16px;border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--accent-soft);">
-      <div style="font-size:11px;color:var(--accent);letter-spacing:0.1em;margin-bottom:6px;">⭐ 권장 하루 섭취 칼로리</div>
+      <div style="font-size:11px;color:var(--accent);letter-spacing:0.1em;margin-bottom:6px;">⭐ 권장 하루 섭취 칼로리 (${targetDesc})</div>
       <div style="font-family:var(--font-display);font-size:32px;font-weight:500;color:var(--accent);">${target || '—'} <span style="font-size:14px;">kcal</span></div>
       <div style="font-size:12px;color:var(--ink-soft);margin-top:6px;line-height:1.5;">
-        주당 ${p.goalPace}kg 감량 페이스<br>
-        단백질 하루 ${proteinGoal}g 이상 권장
+        ${calorieNote}
       </div>
     </div>
     
-    ${months ? `
+    ${months && goalType !== 'maintain' ? `
       <div style="background:var(--bg-secondary);padding:14px;border-radius:var(--radius);margin-bottom:14px;text-align:center;">
         <div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px;">목표까지 예상 기간</div>
         <div style="font-family:var(--font-display);font-size:20px;font-weight:500;">${months}개월 후</div>
-        <div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">${p.startWeight}kg → ${p.targetWeight}kg (총 -${totalLoss}kg)</div>
+        <div style="font-size:11px;color:var(--ink-muted);margin-top:4px;">${p.startWeight}kg → ${p.targetWeight}kg (${weightDiff > 0 ? '+' : ''}${weightDiff.toFixed(1)}kg)</div>
       </div>
     ` : ''}
     
     <div style="font-size:12px;color:var(--ink-soft);background:var(--bg-secondary);padding:12px;border-radius:var(--radius-sm);line-height:1.6;margin-bottom:16px;">
-      💡 <strong>시작 팁</strong><br>
-      • 매일 아침 같은 시간에 체중 재기<br>
-      • 하루 물 2L 이상 마시기<br>
-      • 잠 7시간 이상 자기<br>
-      • 무리하지 말고 천천히 ❤️
+      ${tips}
     </div>
     
     <div class="modal-actions">
@@ -4434,9 +4527,17 @@ async function showAnalysisResult() {
     </div>
   `;
   
-  // 음성 안내
+  // 음성 안내 (목표별)
   if (state.settings.profile.voiceEnabled !== false) {
-    const speech = `${p.name ? p.name + '님, ' : ''}분석이 완료됐어요. 기초대사량은 ${bmr}칼로리, 하루 소모량은 ${tdee}칼로리예요. 권장 하루 섭취 칼로리는 ${target}칼로리이고, 단백질은 하루 ${proteinGoal}그램 이상 드시는 게 좋아요. ${months ? `목표 체중까지 약 ${months}개월 예상돼요. ` : ''}무리하지 말고 천천히 시작해볼까요?`;
+    let goalSpeech = '';
+    if (goalType === 'gain') {
+      goalSpeech = `근육을 늘리시려면 권장 하루 섭취 칼로리는 ${target}칼로리예요. 소모량보다 조금 더 드시는 게 핵심이에요. 단백질은 하루 ${proteinGoal}그램 이상, 웨이트 운동과 충분한 수면을 병행하시면 좋아요.`;
+    } else if (goalType === 'maintain') {
+      goalSpeech = `현 체중을 유지하시려면 하루 ${target}칼로리가 적당해요. 단백질은 하루 ${proteinGoal}그램으로 근육을 지키시고, 규칙적으로 운동하세요.`;
+    } else {
+      goalSpeech = `권장 하루 섭취 칼로리는 ${target}칼로리이고, 단백질은 하루 ${proteinGoal}그램 이상 드시는 게 좋아요. ${months ? `목표 체중까지 약 ${months}개월 예상돼요. ` : ''}무리하지 말고 천천히 시작해볼까요?`;
+    }
+    const speech = `${p.name ? p.name + '님, ' : ''}분석이 완료됐어요. 기초대사량은 ${bmr}칼로리, 하루 소모량은 ${tdee}칼로리예요. ${goalSpeech}`;
     setTimeout(() => speakText(speech), 500);
   }
 }
