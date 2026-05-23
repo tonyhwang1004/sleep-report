@@ -465,6 +465,70 @@
     color: var(--ink-soft);
   }
 
+  /* 코치 대화 UI */
+  .coach-chat-log {
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chat-msg {
+    display: flex;
+    width: 100%;
+  }
+  .chat-msg.user { justify-content: flex-end; }
+  .chat-msg.coach { justify-content: flex-start; }
+  .chat-bubble {
+    max-width: 82%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .chat-bubble.user {
+    background: var(--ink);
+    color: var(--bg);
+    border-bottom-right-radius: 4px;
+  }
+  .chat-bubble.coach {
+    background: var(--bg-card);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .coach-chat-input {
+    display: flex;
+    gap: 6px;
+  }
+  .coach-chat-input input {
+    flex: 1;
+    background: var(--bg-card);
+    border-color: transparent;
+  }
+  .coach-chat-input button {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    background: var(--ink);
+    color: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .coach-quick-q {
+    flex: 1;
+    padding: 8px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .coach-quick-q:hover { border-color: var(--accent); color: var(--accent); }
+
   /* 라디오 옵션 (온보딩용) */
   .radio-option {
     padding: 12px 14px;
@@ -1142,6 +1206,25 @@
     <div class="ai-status" id="ai-status"></div>
   </div>
 
+  <!-- AI 코치에게 질문 -->
+  <div class="ai-card" style="background:linear-gradient(135deg, var(--rose-bg) 0%, var(--accent-bg) 100%);">
+    <div class="ai-header">
+      <span class="ai-icon">💬</span>
+      <span class="ai-title">AI 코치에게 질문</span>
+    </div>
+    <div class="ai-hint">예) "지방이 좀 높지 않아?", "단백질 뭐로 채울까?"</div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="home-coach-input" placeholder="궁금한 걸 물어보세요..." style="flex:1;background:var(--bg-card);border-color:transparent;" onkeydown="if(event.key==='Enter')homeCoachAsk()">
+      <button class="btn-submit" id="home-coach-send" style="flex-shrink:0;" onclick="homeCoachAsk()">
+        <span>💬</span><span>질문</span>
+      </button>
+    </div>
+    <div id="home-coach-answer" style="display:none;margin-top:10px;padding:12px;background:var(--bg-card);border-radius:var(--radius-sm);font-size:13px;line-height:1.6;"></div>
+    <div style="text-align:right;margin-top:6px;">
+      <button onclick="switchPage('coach')" style="font-size:11px;color:var(--accent);background:none;">코치 탭에서 대화 이어가기 →</button>
+    </div>
+  </div>
+
   <!-- 오늘 기록된 몸상태 -->
   <div id="conditions-list"></div>
 
@@ -1286,6 +1369,8 @@ function loadAll() {
     if (raw) {
       const loaded = JSON.parse(raw);
       state = { ...state, ...loaded };
+      // 저장된 옛날 날짜가 아니라 항상 오늘 날짜로 시작
+      state.currentDate = todayStr();
       if (!state.settings) state.settings = { goal: 1500, waterGoal: 2000, weightUnit: 'kg', apiKey: '', openaiKey: '', cycle: { lastPeriod: null, length: 28, duration: 5 } };
       if (state.settings.openaiKey === undefined) state.settings.openaiKey = '';
       if (!state.settings.coupangLinks) state.settings.coupangLinks = {};
@@ -1337,11 +1422,13 @@ function getDay(date = state.currentDate) {
       water: 0,
       exercise: [],
       sleep: null,
-      conditions: []
+      conditions: [],
+      chat: []
     };
   }
   // 이전 버전 호환
   if (!state.daily[date].conditions) state.daily[date].conditions = [];
+  if (!state.daily[date].chat) state.daily[date].chat = [];
   return state.daily[date];
 }
 
@@ -2594,6 +2681,139 @@ async function callClaude(prompt, maxTokens = 2048) {
   return data.content.filter(i => i.type === "text").map(i => i.text).join("");
 }
 
+// 코치에게 보낼 컨텍스트 요약 텍스트 생성
+function buildCoachContext() {
+  const profile = state.settings.profile;
+  const day = getDay();
+  let cal = 0, c = 0, p = 0, f = 0, exCal = 0;
+  const foodList = [];
+  Object.entries(day.foods).forEach(([meal, items]) => {
+    items.forEach(item => {
+      cal += item.cal || 0; c += item.c || 0; p += item.p || 0; f += item.f || 0;
+      foodList.push(`${meal} ${item.time||''} ${item.name}(${Math.round(item.cal)}kcal,단${Math.round(item.p||0)}g,탄${Math.round(item.c||0)}g,지${Math.round(item.f||0)}g)`);
+    });
+  });
+  (day.exercise || []).forEach(e => exCal += e.cal || 0);
+  
+  const proteinGoal = profile.startWeight ? Math.round(profile.startWeight * 1.6) : 80;
+  const exList = (day.exercise||[]).map(e => `${e.name} ${e.duration}분${e.distance?' '+e.distance+'km':''}`).join(', ');
+  const condList = (day.conditions||[]).map(c => `${c.time} ${(c.tags||[]).join(',')}${c.note?' "'+c.note+'"':''}`).join(' | ');
+  
+  let ctx = `[사용자 프로필]\n`;
+  if (profile.name) ctx += `이름: ${profile.name}\n`;
+  if (profile.height) ctx += `키 ${profile.height}cm, 현재 ${profile.startWeight}kg → 목표 ${profile.targetWeight}kg\n`;
+  ctx += `하루 목표: ${state.settings.goal}kcal, 단백질 권장 ${proteinGoal}g\n`;
+  if (profile.avoidFoods) ctx += `못 먹는 음식: ${profile.avoidFoods}\n`;
+  if (profile.preferredStyle && profile.preferredStyle.length) ctx += `선호: ${profile.preferredStyle.join(',')}\n`;
+  
+  ctx += `\n[오늘 ${state.currentDate} 현황]\n`;
+  ctx += `섭취 칼로리: ${Math.round(cal)}kcal (운동 -${Math.round(exCal)}, 순 ${Math.round(cal-exCal)}kcal)\n`;
+  ctx += `단백질 ${Math.round(p)}/${proteinGoal}g, 탄수 ${Math.round(c)}g, 지방 ${Math.round(f)}g\n`;
+  ctx += `먹은 음식: ${foodList.join('; ') || '없음'}\n`;
+  if (exList) ctx += `운동: ${exList}\n`;
+  if (day.weight) ctx += `체중: ${day.weight}kg\n`;
+  if (day.water) ctx += `물: ${day.water}ml\n`;
+  if (day.sleep) ctx += `수면: ${day.sleep.hours}시간 ${day.sleep.quality}\n`;
+  if (condList) ctx += `몸상태: ${condList}\n`;
+  
+  return ctx;
+}
+
+// AI 코치와 대화 (질문 보내기)
+async function sendCoachMessage(userText, options = {}) {
+  if (!userText || !userText.trim()) return;
+  if (!state.settings.apiKey) { openModal('apiKey'); return; }
+  
+  const day = getDay();
+  // 사용자 메시지 저장
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  day.chat.push({ role: 'user', text: userText.trim(), time: timeStr });
+  await saveAll();
+  if (options.onUpdate) options.onUpdate();
+  
+  try {
+    const context = buildCoachContext();
+    // 최근 대화 히스토리 (최대 10개)
+    const history = day.chat.slice(-10).map(m => `${m.role === 'user' ? '사용자' : '코치'}: ${m.text}`).join('\n');
+    
+    const prompt = `당신은 따뜻하고 전문적인 한국인 다이어트 영양 코치입니다. 사용자의 실제 데이터를 바탕으로 친근하게 대화하세요.
+
+${context}
+
+[지금까지 대화]
+${history}
+
+[지침]
+- 사용자의 실제 섭취 데이터(칼로리, 단백질, 지방 등)를 근거로 구체적으로 답하세요.
+- 특정 음식의 양을 언급하면 영양소를 계산해서 피드백하세요. 예: "브리치즈 90g은 지방 약 27g이라 오늘 지방이 높아진 이유예요. 50g으로 줄이면 좋겠어요."
+- 부족한 영양소가 있으면 채울 음식을 추천하세요.
+- 따뜻하지만 솔직하게. 칭찬할 건 칭찬하고 고칠 건 부드럽게 지적.
+- 2-4문장으로 간결하게. 이모지는 적당히.
+- 의학적 진단은 하지 말고, 일반적 영양 조언만.
+
+사용자의 마지막 질문에 답하세요.`;
+
+    const reply = await callClaude(prompt, 1024);
+    day.chat.push({ role: 'coach', text: reply.trim(), time: timeStr });
+    await saveAll();
+    if (options.onUpdate) options.onUpdate();
+    if (options.speak && state.settings.profile.voiceEnabled !== false) {
+      speakText(reply.trim());
+    }
+  } catch (err) {
+    console.error(err);
+    day.chat.push({ role: 'coach', text: `죄송해요, 오류가 났어요: ${err.message}`, time: timeStr });
+    await saveAll();
+    if (options.onUpdate) options.onUpdate();
+  }
+}
+
+// 하루 평가 요청
+async function requestDailyReview(options = {}) {
+  if (!state.settings.apiKey) { openModal('apiKey'); return; }
+  const day = getDay();
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  
+  day.chat.push({ role: 'user', text: '오늘 하루 평가해줘', time: timeStr });
+  await saveAll();
+  if (options.onUpdate) options.onUpdate();
+  
+  try {
+    const context = buildCoachContext();
+    const prompt = `당신은 따뜻한 다이어트 영양 코치입니다. 사용자의 오늘 하루를 평가해주세요.
+
+${context}
+
+다음 형식으로 답하세요 (각 항목 1-2개씩, 친근한 톤):
+
+✓ 오늘 좋았던 점
+(구체적으로, 데이터 근거로)
+
+△ 고치면 좋을 점
+(부드럽게, 구체적 음식/양 언급. 예: 지방이 높으니 치즈를 50g으로)
+
+💡 내일은 이렇게
+(실천 가능한 구체적 제안 1-2개)
+
+칼로리/단백질/지방 등 실제 숫자를 근거로 들어주세요. 의학적 진단은 하지 마세요.`;
+
+    const reply = await callClaude(prompt, 1500);
+    day.chat.push({ role: 'coach', text: reply.trim(), time: timeStr });
+    await saveAll();
+    if (options.onUpdate) options.onUpdate();
+    if (options.speak && state.settings.profile.voiceEnabled !== false) {
+      speakText(reply.trim());
+    }
+  } catch (err) {
+    console.error(err);
+    day.chat.push({ role: 'coach', text: `오류: ${err.message}`, time: timeStr });
+    await saveAll();
+    if (options.onUpdate) options.onUpdate();
+  }
+}
+
 async function getFoodRecommendation() {
   const overlay = document.getElementById('modal-overlay');
   const modal = document.getElementById('modal');
@@ -3182,6 +3402,23 @@ function renderCoach() {
   content.innerHTML = `
     ${renderNutritionAnalysis()}
 
+    <div class="coach-card featured" style="padding-bottom:14px;">
+      <div class="coach-title"><span>💬</span> AI 코치와 대화</div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;">
+        먹은 음식이나 고민을 물어보세요. 오늘 데이터를 보고 답해드려요.
+      </div>
+      <div id="coach-chat-log" class="coach-chat-log"></div>
+      <div class="coach-chat-input">
+        <input type="text" id="coach-chat-text" placeholder="예: 점심에 브리치즈 90g 먹었는데 괜찮아?" onkeydown="if(event.key==='Enter')coachChatSend()">
+        <button id="coach-chat-send" onclick="coachChatSend()">전송</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="coach-quick-q" onclick="coachQuickAsk('오늘 뭐가 부족해?')">뭐가 부족해?</button>
+        <button class="coach-quick-q" onclick="coachQuickAsk('지금 뭐 먹으면 좋아?')">뭐 먹지?</button>
+        <button class="coach-quick-q" onclick="coachDailyReview()">오늘 평가</button>
+      </div>
+    </div>
+
     <div class="coach-card featured">
       <div class="coach-title"><span>✦</span> AI 음식 추천</div>
       <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;line-height:1.5;">
@@ -3235,6 +3472,103 @@ function renderCoach() {
 
     ${renderSuperfoodSection()}
   `;
+  
+  renderCoachChatLog();
+}
+
+function renderCoachChatLog() {
+  const log = document.getElementById('coach-chat-log');
+  if (!log) return;
+  const day = getDay();
+  if (!day.chat || day.chat.length === 0) {
+    log.innerHTML = `<div style="text-align:center;padding:20px 10px;color:var(--ink-muted);font-size:12px;">아직 대화가 없어요.<br>아래에 질문을 입력해보세요.</div>`;
+    return;
+  }
+  log.innerHTML = day.chat.map(m => `
+    <div class="chat-msg ${m.role}">
+      <div class="chat-bubble ${m.role}">${m.text.replace(/\n/g, '<br>')}</div>
+    </div>
+  `).join('');
+  log.scrollTop = log.scrollHeight;
+}
+
+async function coachChatSend() {
+  const input = document.getElementById('coach-chat-text');
+  const btn = document.getElementById('coach-chat-send');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  
+  // 사용자 메시지 즉시 표시 + 로딩
+  await sendCoachMessage(text, {
+    speak: true,
+    onUpdate: () => {
+      renderCoachChatLog();
+      // 코치 응답 대기 중 표시
+      const log = document.getElementById('coach-chat-log');
+      const day = getDay();
+      if (log && day.chat[day.chat.length-1].role === 'user') {
+        log.innerHTML += `<div class="chat-msg coach"><div class="chat-bubble coach" style="opacity:0.6;">생각 중...</div></div>`;
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  });
+  
+  if (btn) { btn.disabled = false; btn.textContent = '전송'; }
+}
+
+function coachQuickAsk(q) {
+  const input = document.getElementById('coach-chat-text');
+  if (input) input.value = q;
+  coachChatSend();
+}
+
+async function homeCoachAsk() {
+  const input = document.getElementById('home-coach-input');
+  const btn = document.getElementById('home-coach-send');
+  const answerEl = document.getElementById('home-coach-answer');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  if (btn) btn.disabled = true;
+  if (answerEl) {
+    answerEl.style.display = 'block';
+    answerEl.innerHTML = '<span style="color:var(--ink-muted);">💬 코치가 생각 중...</span>';
+  }
+  
+  await sendCoachMessage(text, {
+    speak: true,
+    onUpdate: () => {
+      const day = getDay();
+      const last = day.chat[day.chat.length - 1];
+      if (last && last.role === 'coach' && answerEl) {
+        answerEl.innerHTML = last.text.replace(/\n/g, '<br>');
+      }
+    }
+  });
+  
+  if (btn) btn.disabled = false;
+}
+
+async function coachDailyReview() {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '평가 중...'; }
+  await requestDailyReview({
+    speak: true,
+    onUpdate: () => {
+      renderCoachChatLog();
+      const log = document.getElementById('coach-chat-log');
+      const day = getDay();
+      if (log && day.chat[day.chat.length-1].role === 'user') {
+        log.innerHTML += `<div class="chat-msg coach"><div class="chat-bubble coach" style="opacity:0.6;">오늘 하루 돌아보는 중...</div></div>`;
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  });
+  if (btn) { btn.disabled = false; btn.textContent = '오늘 평가'; }
 }
 
 // ============================================================
